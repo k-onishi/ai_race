@@ -47,6 +47,8 @@ function install_basic_package(){
     sudo apt-get install -y libportmidi-dev
     sudo pip3 install pgzero
     python -m pip install pygame==1.9.6
+    # scikit learn
+    sudo apt install -y gfortran
 }
 
 function install_ros(){
@@ -68,14 +70,15 @@ function install_ros(){
 function install_ros_related_packages(){
     # joint state controller, and ros package
     sudo apt install -y ros-melodic-ros-control ros-melodic-ros-controllers  ros-melodic-joint-state-controller ros-melodic-effort-controllers ros-melodic-position-controllers ros-melodic-joint-trajectory-controller
+    sudo apt install ros-melodic-cob-srvs
     # gazebo
     sudo apt-get install -y gazebo9
     sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
     wget http://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
     sudo apt-get update -y
     sudo apt-get install -y ros-melodic-gazebo-ros-pkgs ros-melodic-gazebo-ros-control
-    echo "export GAZEBO_MODEL_PATH=:/home/jetson/catkin_ws/src/ai_race/ai_race:/home/jetson/catkin_ws/src/ai_race/ai_race/sim_world/models" >> ~/.bashrc
-    export GAZEBO_MODEL_PATH=:/home/jetson/catkin_ws/src/ai_race/ai_race:/home/jetson/catkin_ws/src/ai_race/ai_race/sim_world/models
+    echo "export GAZEBO_MODEL_PATH=:${HOME}/catkin_ws/src/ai_race/ai_race:${HOME}/catkin_ws/src/ai_race/ai_race/sim_world/models" >> ~/.bashrc
+    export GAZEBO_MODEL_PATH=:${HOME}/catkin_ws/src/ai_race/ai_race:${HOME}/catkin_ws/src/ai_race/ai_race/sim_world/models
     # camera image
     sudo apt-get install -y ros-melodic-uvc-camera
     sudo apt-get install -y ros-melodic-image-*
@@ -120,6 +123,7 @@ function install_torch2trt(){
     sudo rm -rf torch2trt
     git clone https://github.com/NVIDIA-AI-IOT/torch2trt
     cd torch2trt
+    git checkout d1fa6f9f20c6c4c57a9486680ab38c45d0d94ec3
     sudo python setup.py install
     sudo python3 setup.py install
 }

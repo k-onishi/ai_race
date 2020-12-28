@@ -86,6 +86,8 @@ sudo apt-get install -y libfreetype6-dev
 sudo apt-get install -y libportmidi-dev
 sudo pip3 install pgzero
 python -m pip install pygame==1.9.6
+# scikit learn
+sudo apt install -y gfortran
 ```
 
 ### 2.2. ROSのインストール
@@ -110,14 +112,15 @@ source /opt/ros/melodic/setup.bash
 ```
 # joint state controller, and ros package
 sudo apt install -y ros-melodic-ros-control ros-melodic-ros-controllers  ros-melodic-joint-state-controller ros-melodic-effort-controllers ros-melodic-position-controllers ros-melodic-joint-trajectory-controller
+sudo apt install ros-melodic-cob-srvs
 # gazebo
 sudo apt-get install -y gazebo9
 sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
 wget http://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
 sudo apt-get update -y
 sudo apt-get install -y ros-melodic-gazebo-ros-pkgs ros-melodic-gazebo-ros-control
-echo "export GAZEBO_MODEL_PATH=:/home/jetson/catkin_ws/src/ai_race/ai_race:/home/jetson/catkin_ws/src/ai_race/ai_race/sim_world/models" >> ~/.bashrc
-export GAZEBO_MODEL_PATH=:/home/jetson/catkin_ws/src/ai_race/ai_race:/home/jetson/catkin_ws/src/ai_race/ai_race/sim_world/models
+echo "export GAZEBO_MODEL_PATH=:${HOME}/catkin_ws/src/ai_race/ai_race:${HOME}/catkin_ws/src/ai_race/ai_race/sim_world/models" >> ~/.bashrc
+export GAZEBO_MODEL_PATH=:${HOME}/catkin_ws/src/ai_race/ai_race:${HOME}/catkin_ws/src/ai_race/ai_race/sim_world/models
 # camera image
 sudo apt-get install -y ros-melodic-uvc-camera
 sudo apt-get install -y ros-melodic-image-*
@@ -159,6 +162,7 @@ pip install 'pillow<7'
 cd ~
 git clone https://github.com/NVIDIA-AI-IOT/torch2trt
 cd torch2trt
+git checkout d1fa6f9f20c6c4c57a9486680ab38c45d0d94ec3   # 動作確認済みのバージョン（Wed Nov 4時点）に戻す
 sudo python setup.py install
 sudo python3 setup.py install
 
@@ -188,7 +192,7 @@ cd nano_build_opencv
 | ---- | ---- | ---- | ---- |
 |  pytorch  |  ~~1.6.0~~ 1.4.0  |  1.4.0  |  -  |
 |  torchvision  |  0.2.2  |  0.2.2  |  -  |
-|  torch2trt  |  -  |  -  |  -  |
+|  torch2trt  |  -  |  -  |  動作確認済みのバージョン `git checkout d1fa6f9f20c6c4c57a9486680ab38c45d0d94ec3`  |
 |  sklearn  |  0.23.2  |  Not_Installed  |  -  |
 |  pandas  |  0.22.0 ~~(1.1.3必須かも)~~  |  Not_Installed  |  -  |
 |  cv2  |  3.4.10  |  3.4.10   |  -  |
@@ -210,6 +214,8 @@ catkin build
 source devel/setup.bash
 echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 ```
+
+別リポジトリのビルドや、パッケージ追加時の再ビルド手順は、[FAQ #catkin_wsを再buildするにはどうすればよい？](https://github.com/seigot/ai_race/blob/main/FAQ.md)をご参考下さい。
 
 ## 3. サンプルコード
 
@@ -250,31 +256,75 @@ python inference_from_image.py --trt_module --trt_model $HOME/ai_race_data_sampl
 
 #### 学習モデルを作成
 
-サンプルデータを使って学習モデルを作成する場合の例。一度実行すると結構時間が掛かります。<br>
+サンプルデータを使って学習モデルを作成する場合の例。<br>
+動作確認用に`--n_epoch 3`を指定して約30分程で終わるようにしています。<br>
 
 ```
 cd ~/catkin_ws/src/ai_race/ai_race/learning/scripts
-python3 train.py --data_csv $HOME/ai_race_data_sample/dataset/plane/_2020-11-17-01-34-45/_2020-11-17-01-34-45.csv --model_name sample_model
+python3 train.py --data_csv $HOME/ai_race_data_sample/dataset/plane/_2020-11-17-01-34-45/_2020-11-17-01-34-45.csv --model_name sample_model --n_epoch 3
 ```
 
-次に、JetsonNanoに合わせて学習モデルを軽量化する。(trtあり版と呼ばれるもの) <br>
-作成した学習モデルのパスが、`$HOME/ai_race_data_sample/model/plane/sample_plane.pth` である場合の例。<br>
+`train.py`の実行ログを参照し、学習モデル(`*.pth`)ファイルが作成できていることを確認下さい。<br>
+`train.py`の引数に与えられるパラメータは以下で確認できます。`--n_epoch NN`等のパラメータは適宜調整して下さい。<br>
+
+```
+python3 train.py -h
+```
+
+#### 学習モデルの軽量化
+
+JetsonNanoに合わせて学習モデルを軽量化する。(trtあり版と呼ばれるもの) <br>
+作成した学習モデルのパスが、`$HOME/ai_race_data_sample/model/plane/sample_plane.pth` である場合の例。一度実行すると約10分程掛かります。<br>
 
 ```
 python3 trt_conversion.py --pretrained_model $HOME/ai_race_data_sample/model/plane/sample_plane.pth --trt_model sample_model_trt.pth
 ```
 
+`trt_conversion.py`の実行ログを参照し、`--trt_model`に指定したファイルが作成できていることを確認下さい。<br>
 その後は前述同様、軽量化した学習モデルを利用して推論、車両操作を行って下さい。
 
 #### 学習用データの取得 (Optional)
 
-rqt, joystick, 各種コントローラーで車両操作し、rosbagを取得する。<br>
+rqt, joystick, 各種コントローラーで車両操作し、学習用のデータ（画像、コマンド操作ログ）を取得する。<br>
 サンプルデータでは期待する性能を出ない等、課題を感じた場合は、学習データを独自に取得することをお勧めします。<br>
+以下を実行することで、keyboardから車両操作ができます。<br>
 
 ```
-### rqt, joystick, 各種コントローラーを使って取得する
-roslaunch sim_environment rosbag.launch output_path:=$HOME
+cd ~/catkin_ws/src/ai_race/ai_race/utility/scripts
+python keyboard_con_pygame2.py
 ```
+
+上記実行後、左下の「？」のうち`keyboard_con....py`が表示されてるものを押して、<br>
+その状態で以下キーを押すと車両が動く。<br>
+
+```
+キー　車両の動き
+l 進む
+a 左にまがる
+d 右にまがる
+```
+
+車両が動いている際の、画像とコマンド操作ログを取得するには以下を別ターミナルで実行します。<br>
+デフォルトでは`${HOME}`に画像とコマンド操作ログを含む`rosbag(.bag)`ファイルが出力されます。<br>
+
+```
+roslaunch sim_environment rosbag.launch
+
+### `Ctl+C`で終了する
+### 終了後、rosbag(.bag)ファイルがあることをコマンドから確認する
+ls ${HOME}/*.bag
+```
+
+`rosbag(.bag)`ファイルを、画像とコマンドに変換するには以下を実行します。<br>
+デフォルトでは`${HOME}/Images_from_rosbag/.`以下にファイルが出力されます。<br>
+
+```
+cd ~/catkin_ws/src/ai_race/ai_race/utility/script
+python rosbag_to_images_and_commands.py xxx.bag  # xxx.bagファイルは実在するrosbagファイルを指定する
+ls ${HOME}/Images_from_rosbag/.                  # 画像とコマンドの変換データがあること確認する
+```
+
+以上で作成したデータを、学習モデル作成に使用下さい。
 
 ### 3.2. 各種コマンドの説明
 
@@ -304,8 +354,7 @@ python listup_all_rosbag_timestamp.py *.bag               # 時刻表示でき�
 ## 学習 
 cd learning/scripts (学習用フォルダへ移動) 
 python3 train.py --data_csv <csvのパス フルパス指定> --model_name <保存するモデル名>  
-#### 以下のディレクトリにモデルが保存されます
-ls ~/catkin_ws/src/ai_race/ai_raceexperiments/models/checkpoints/*.pth
+#### 実行ログ記載のディレクトリにモデルが保存されます
 ```
 
 * Step3.学習モデルを使って推論、車両操作
@@ -386,7 +435,9 @@ python inference_from_image.py --trt_module --trt_model <保存したtrtモデ�
     └── stop.sh       # [大会用] 停止スクリプト
 ```
 
-### 3.4 学習モデルチューニングのはじめかた
+### 3.4 学習モデル自作のはじめかた
+
+#### 本リポジトリのfork
 
 まず、Githubアカウントを取得して本リポジトリを自リポジトリにforkして下さい。
 
@@ -397,37 +448,67 @@ python inference_from_image.py --trt_module --trt_model <保存したtrtモデ�
 > 2. ページの右上にある [Fork] をクリックします。 <br>
 > 参考：[リポジトリをフォークする](https://docs.github.com/ja/free-pro-team@latest/github/getting-started-with-github/fork-a-repo) <br>
 
-forkしたリポジトリで各々のローカル変更、チューニング等行ってください。<br>
+#### 学習用データの取得、チューニング、学習モデル作成
 
-```
-・機械学習モデルの作成を工夫する場合
-   --> train.py周りを参考にして、パラメータや各種処理の更新を行ってください。
-       変更ファイルは、運営とのconflictを避けるためにyour_environment下に格納することをお勧めします。
-・学習データの取得を工夫する場合
-   --> utility以下を参考に、手動で車両を操作して学習データを取得して下さい。
-       サイズの大きなデータは可能な限り、本リポジトリ以外でやりとりすることをお勧めします。（Githubの1ファイル最大が50MBまでという制約あり）
-```
+forkしたリポジトリで各々の学習データ取得、チューニング、学習モデル作成をしてください。<br>
+変更ファイルは、運営とのconflictを避けるために`your_environmentディレクトリ`以下に登録することをお勧めします。<br>
 
+- 学習データの取得を工夫する
+
+サンプルの`学習用データの取得`を参考に、車両を自ら操作して学習データを取得することが可能です。<br>
+`走行経路`や`入力画像のバリエーション`など、各々工夫をしてみてください。<br>
 <br>
+※ 学習データ自体はサイズが大きいため、ファイルの受渡しはgithub以外でやりとりすることをお勧めします。<br>
+　（Githubは1ファイル最大が50MBまで、1GB 以下を推奨という制約があり、大きなファイルを扱うのに適しているとはいえない）<br>
+
+- チューニング、学習モデルの作成を工夫する
+
+train.pyや周辺ファイルを参考に、各種パラメータを調整することが可能です。<br>
+機械学習アルゴリズム選定など含め、各々工夫をしてみてください。<br>
+
+#### 自リポジトリの学習モデルを公式リリースする
+
+学習モデルを公式リリースする場合は、Githubリリースの機能を使うと簡単なのでお勧めです。
+
+> 学習モデルを提出（バイナリリリース）する場合の手順参考 <br>
+> [リポジトリのリリースを管理する](https://docs.github.com/ja/free-pro-team@latest/github/administering-a-repository/managing-releases-in-a-repository) <br>
+> 7.オプションで、コンパイルされたプログラムなどのバイナリファイルをリリースに含めるには、ドラッグアンドドロップするかバイナリボックスで手動で選択します。 <br>
+
+#### 本リポジトリの最新バージョン取り込み
+
 今後、本リポジトリもバージョンアップしていく予定です。<br>
-本リポジトリのバージョンアップを取り込む場合は、以下手順を行って下さい。<br>
+本リポジトリのバージョンアップを取り込む場合は、forkしたリポジトリにて以下を実行して下さい。<br>
 
 ```
-- ローカルのmasterブランチに移動
-- fork元のリポジトリをupstream という名前でリモートリポジトリに登録（名前はなんでもいい。登録済みならスキップ）
-- upstream から最新のコードをfetch
-- upstream/master を ローカルのmaster にmerge
-```
-
-```
-git checkout master
-git remote add upstream https://github.com/seigot/ai_race
-git fetch upstream
-git merge upstream/master
+git checkout main                                          # ローカルのmainブランチに移動
+git remote add upstream https://github.com/seigot/ai_race  # fork元のリポジトリをupstream という名前でリモートリポジトリに登録（名前はなんでもいい。登録済みならスキップ）
+git fetch upstream                                         # upstream から最新のコードをfetch
+git merge upstream/main                                    # upstream/main を ローカルのmaster にmerge
+git push                                                   # 変更を反映
 ```
 
 参考：[github で fork したリポジトリで本家に追従する](https://please-sleep.cou929.nu/track-original-at-forked-repo.html)
 
+#### Pull Requestを送る（Optional）
+
+本リポジトリへ修正リクエストを送ることが可能です。詳しくは参考をご参照下さい。<br>
+<br>
+参考：<br>
+[GitHub-プルリクエストの作成方法](https://docs.github.com/ja/free-pro-team@latest/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request)<br>
+[[実践] はじめてのPull Requestをやってみよう](https://qiita.com/wataryooou/items/8dce6b6d5f54ab2cef04)<br>
+[【GitHub】Pull Requestの手順](https://qiita.com/aipacommander/items/d61d21988a36a4d0e58b)<br>
+
+
+### 3.5 SimpleNetを使う
+
+デフォルトでは、ニューラルネットワークとしてResNet-18を使うようになっていますが、自分でニューラルネットワークを作成する場合のサンプルとして、[シンプルなニューラルネットワーク(SimpleNet)](https://github.com/seigot/ai_race/blob/main/ai_race/learning/scripts/samplenet.py#L35)を用意しています。<br>
+ResNet-18ではなくSimpleNetを使う場合は、`train.py`, `trt_conversion.py`, `inference_from_image.py`の実行時に、`--model simplenet`オプションを付けてください。
+```
+cd ~/catkin_ws/src/ai_race/ai_race/learning/scripts
+python3 train.py --model simplenet　 --data_csv $HOME/ai_race_data_sample/dataset/plane/_2020-11-17-01-34-45/_2020-11-17-01-34-45.csv --model_name sample_model
+python3 trt_conversion.py --model simplenet --pretrained_model <学習させたモデル フルパス指定> --trt_model <保存するtrtモデル名>
+python inference_from_image.py --model simplenet --trt_module --trt_model <保存したtrtモデル名 フルパス指定> 
+```
 
 ## 4. ルール
 
@@ -449,15 +530,25 @@ git merge upstream/master
 
 以下のコースを用意しました。<br>
 
-|  -  |  level1  |  level2  |  level3  |
+|  -  |  level1  |  level1 with透明壁  |  level1 advance  |
 | ---- | ---- | ---- | ---- |
-|  名称  |  Plane  |  Medium Track  |  Hard track  |
-|  外観  |  ![medium_track_plane-2.png](https://github.com/seigot/ai_race/blob/main/document/medium_track_plane-2.png)  |  ![medium_track-2.png](https://github.com/seigot/ai_race/blob/main/document/medium_track-2.png)  |  ![hard_track.png](https://github.com/seigot/ai_race/blob/main/document/hard_track.png)  |
-|  特徴  |  地面：一様な模様です  |  地面：濃淡付きの模様です  |  地面：サーキット型の模様です。カーブが急で、速度を調整しないと曲がれない  |
-|  障害物  |  なし  |  なし  |  三角コーンを置くかも  |
-|  起動コマンド  |  bash prepare.sh -l 1  |  bash prepare.sh -l 2  |  bash prepare.sh -l 3  |
-|  学習データのサンプル  |  あり（１週分）[url](https://github.com/seigot/ai_race_data_sample/tree/main/dataset/plane)  |  あり（１週分）[url](https://github.com/seigot/ai_race_data_sample/tree/main/dataset/medium) |  なし  |
-|  備考  |  今回のルールで採用  |  optional  |  optional（準備中）  |
+|  名称  |  Plane  |  Plane(with透明壁)  |  Plane(advance)  |
+|  外観  |  ![medium_track_plane-2.png](https://github.com/seigot/ai_race/blob/main/document/medium_track_plane-2.png)  |  ![medium_track_plane_tomei-kabe.png](https://github.com/seigot/ai_race/blob/main/document/medium_track_plane_tomei-kabe.png)  |  ![medium_track_plane3_advance.png](https://github.com/seigot/ai_race/blob/main/document/medium_track_plane3_advance.png)  |
+|  特徴  |  地面：一様な模様です  |  地面：一様な模様です  |  地面：一様な模様+周辺に草が生えています。<br>草エリア走行時は速度が落ちます。  |
+|  障害物  |  なし  |  赤い点線部分に透明の壁があります  |  赤い点線部分に透明の壁があります  |
+|  起動コマンド  |  bash prepare.sh -l 1  |  bash prepare.sh -l 1t  |  bash prepare.sh -l 1a  |
+|  学習データのサンプル  |  あり（１週分）[url](https://github.com/seigot/ai_race_data_sample/tree/main/dataset/plane)  |  なし  |  なし  |
+|  備考  |  今回のルールで採用  |  初回起動前に、[FAQ](FAQ.md)を参考に再度catkin buildして下さい  |  初回起動前に、[FAQ](FAQ.md)を参考に再度catkin buildして下さい  |
+
+|  -  |  level2  |  level3  |
+| ---- | ---- | ---- |
+|  名称  |  Medium Track  |  Hard track  |
+|  外観  |  ![medium_track-2.png](https://github.com/seigot/ai_race/blob/main/document/medium_track-2.png)  |  ![hard_track.png](https://github.com/seigot/ai_race/blob/main/document/hard_track.png)  |
+|  特徴  |  地面：濃淡付きの模様です  |  地面：サーキット型の模様です。カーブが急で、速度を調整しないと曲がれない  |
+|  障害物  |  なし  |  三角コーンを置くかも  |
+|  起動コマンド  |  bash prepare.sh -l 2  |  bash prepare.sh -l 3  |
+|  学習データのサンプル  |  あり（１週分）[url](https://github.com/seigot/ai_race_data_sample/tree/main/dataset/medium) |  なし  |
+|  備考  |  optional  |  optional（準備中）  |
 
 ### 4.4 提出して頂くもの
 

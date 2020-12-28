@@ -12,10 +12,12 @@ import os
 import io
 import argparse
 import pandas as pd
+from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
 from MyDataSet import MyDataset
+from samplenet import SampleNet, SimpleNet
 
 
 def main():
@@ -34,15 +36,22 @@ def main():
 	
 	print('data set')
 	# Set a model.
-	model = models.resnet18()
+	if args.model == 'resnet18':
+		model = models.resnet18()
+		model.fc = torch.nn.Linear(512, 3)
+	elif args.model == 'samplenet':
+		model = SampleNet()
+	elif args.model == 'simplenet':
+		model = SimpleNet()
+	else:
+		raise NotImplementedError()
 	model.train()
-	model.fc = torch.nn.Linear(512, 3)
 	model = model.to(device)
 
 	print('model set')
 	# Set loss function and optimization function.
 	criterion = nn.CrossEntropyLoss()
-	optimizer = optim.Adam(model.parameters())
+	optimizer = optim.Adam(model.parameters(), lr=args.lr)
 	#optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 	print('optimizer set')
 	
@@ -72,7 +81,7 @@ def main():
 			print(stdout_temp.format(epoch+1, train_acc, train_loss)) #, test_acc, test_loss))
 
 		# Save a model checkpoint.
-		if(epoch%args.save_model_interval == 0):
+		if(epoch%args.save_model_interval == 0 or epoch+1 == args.n_epoch):
 			model_ckpt_path = args.model_ckpt_path_temp.format(args.dataset_name, args.model_name, epoch+1)
 			torch.save(model.state_dict(), model_ckpt_path)
 			print('Saved a model checkpoint at {}'.format(model_ckpt_path))
@@ -132,6 +141,11 @@ def test(model, device, test_loader, criterion):
 		
 	test_acc, test_loss = calc_score(output_list, target_list, running_loss, test_loader)
 
+	print('confusion_matrix')
+	print(confusion_matrix(output_list, target_list))
+	print('classification_report')
+	print(classification_report(output_list, target_list))
+
 	return test_acc, test_loss
 
 
@@ -152,11 +166,12 @@ def parse_args():
 	
 	arg_parser.add_argument("--dataset_name", type=str, default='sim_race')
 	arg_parser.add_argument("--data_csv", type=str, default=os.environ['HOME'] + '/Images_from_rosbag/_2020-11-05-01-45-29_2/_2020-11-05-01-45-29.csv')
+	arg_parser.add_argument("--model", type=str, default='resnet18')
 	arg_parser.add_argument("--model_name", type=str, default='joycon_ResNet18')
 	arg_parser.add_argument("--model_ckpt_dir", type=str, default=os.environ['HOME'] + '/work/experiments/models/checkpoints/')
 	arg_parser.add_argument("--model_ckpt_path_temp", type=str, default=os.environ['HOME'] + '/work/experiments/models/checkpoints/{}_{}_epoch={}.pth')
 	arg_parser.add_argument('--n_epoch', default=20, type=int, help='The number of epoch')
-	arg_parser.add_argument('--lr', default=0.1, type=float, help='Learning rate')
+	arg_parser.add_argument('--lr', default=0.001, type=float, help='Learning rate')
 	arg_parser.add_argument('--test_interval', default=5, type=int, help='test interval')
 	arg_parser.add_argument('--save_model_interval', default=5, type=int, help='save model interval')
 
@@ -175,3 +190,5 @@ def parse_args():
 
 if __name__ == "__main__":
 	main()
+	print("finished successfully.")
+	os._exit(0)
