@@ -12,22 +12,23 @@ from cv_bridge import CvBridge
 INFERENCE_TIME = 0.055
 
 class CarController(object):
-    SPEED_DIFF = 0.2
+    SPEED_DIFF = 1.6
     ANGLE_DIFF = 1
-    MAX_SPEED = 0.5
+    MAX_SPEED = SPEED_DIFF
     MIN_SPEED = 0
 
-    def __init__(self):
+    def __init__(self, initial_speed=MAX_SPEED):
+        self.bridge = CvBridge()
+        self.initial_speed = initial_speed
         rospy.init_node('car_controller', anonymous=True)
         self.twist_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
         self.image_sub = rospy.Subscriber('front_camera/image_raw', Image, self._callback)
         self.reset()
         self._image = None
-        self.bridge = CvBridge()
 
     def reset(self):
-        self.speed = 0
-        self.angle = 0
+        self.speed = 0.0
+        self.angle = 0.0
         self.move(self.speed, self.angle)
 
     def preprocess(self, image):
@@ -51,7 +52,7 @@ class CarController(object):
 
     def brake(self):
         self.speed -= CarController.SPEED_DIFF
-        if self.speed < CarController.MIN_SPEED:
+        if self.speed <= CarController.MIN_SPEED:
             self.speed = CarController.MIN_SPEED
 
     def steering(self, scale):
@@ -69,12 +70,11 @@ class CarController(object):
 
     def _step(self):
         self.step()
-        self.move(self.speed, self.angle)
+        # self.move(self.speed, self.angle)
         self.angle = 0
 
-    def start(self, rate=10):
+    def start(self, rate=30):
         r = rospy.Rate(rate)
         while not rospy.is_shutdown():
-            print("step")
             self._step()
             r.sleep()

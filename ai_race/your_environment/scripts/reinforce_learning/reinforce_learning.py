@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import os
 import requests
@@ -12,7 +13,7 @@ import rospy
 from agent import DeepQNetworkAgent
 from car_controller import CarController
 from course_out_detector import CourseOutDetector
-from model import Model
+from model import Model, CustomModel
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
@@ -44,86 +45,108 @@ class GameState(object):
         return self._is_courseout
 
 class ModelLearner(CarController):
-    def __init__(self, update_teacher_count=10):
-        super(ModelLearner, self).__init__()
-        print("Initialize agent")
+    def __init__(self, update_teacher_interval=10, num_epoch=20,
+            model_kwargs={}):
+        self.model_kwargs = model_kwargs
         self.agent = DeepQNetworkAgent(
-                Model,
-                max_experience=10,
-                batch_size=4
-        )
+            CustomModel,
+            height=120,
+            width=320,
+            max_experience=500,
+            batch_size=16,
+            input_size=[1, 3, 240, 320],
+            model_kwargs=model_kwargs)
+        print("model: {}".format(self.agent.model))
         self.count = 0
+        self.num_epoch = num_epoch
         self.episode_count = 0
         print("Initialize detector")
         self.course_out_detector = CourseOutDetector()
         self.previous_image = None
         self.previous_action = None
-        self.update_teacher_count = update_teacher_count
+        self.update_teacher_interval = update_teacher_interval
+        self.done = False
+        super(ModelLearner, self).__init__()
 
     def preprocess(self, image):
         image = super(ModelLearner, self).preprocess(image)
-        return self.agent.preprocess(image)
+        return self.agent.preprocess(image)[:, :, 120:, :]
+
+    def _callback(self, image):
+        if self.done:
+            return
+
+        super(ModelLearner, self)._callback(image)
+        current_image = self.image
+        self.count += 1
+        self.acceleration()
+        action = self.agent.policy(current_image)
+        self.steering(self.agent.choice(action))
+        self.move(self.speed, self.angle)
+
+        self.done = self.course_out_detector.course_outed
+        if self.done:
+            current_image = None
+            reward = -1
+        else:
+            reward = 1
+        if self.previous_image is not None:
+            self.agent.add_experience(
+                self.previous_image,
+                self.previous_action,
+                current_image,
+                torch.tensor([reward])
+            )
+        self.previous_image = current_image
+        self.previous_action = action
 
     @property
-    def state(self):
+    def status(self):
         res = requests.get(
             JUDGESERVER_GETSTATE_URL,
         ).json()["judge_info"]
         return res
 
     def step(self):
-        current_image = self.image
-        if current_image is None:
-            return
-        self.count += 1
-        self.acceleration()
-        state = self.state
-        print("lap: {}\tcourseout: {}".format(
-            state["lap_count"], state["is_courseout"] == 1))
-        action = self.agent.policy(current_image)
-        self.steering(self.agent.choice(action))
+        status = self.status
         done = self.course_out_detector.course_outed
         if done:
-            current_image = None
-            reward = -1
-        else:
-            reward = self.count // 10 + 1
-        if self.previous_image is not None:
-            self.agent.add_experience(
-                    self.previous_image,
-                    self.previous_action,
-                    current_image,
-                    torch.tensor([reward], device=self.agent.device)
-            )
-        self.previous_image = current_image
-        self.previous_action = action
-        self.agent.update()
-        if done:
-            print("Course out")
             self.episode_count += 1
-            if self.episode_count % self.update_teacher_count == 0:
-                self.agent.update_teacher()
+            print("episode: {}\tLAP: {}\tstep count: {}".format(
+                self.episode_count, status["lap_count"], self.count))
             self.reset()
-            ManualRecovery()
-            time.sleep(3)
+            for epoch in range(self.num_epoch):
+                loss = self.agent.update()
+                if loss is None:
+                    break
+            print("Loss: {}".format(loss))
+            if self.episode_count % self.update_teacher_interval == 0:
+                self.agent.update_teacher()
             Start()
 
     def start(self):
-        super(ModelLearner, self).start()
         Start()
+        super(ModelLearner, self).start()
 
     def reset(self):
         super(ModelLearner, self).reset()
-        Stop()
         self.count = 0
+        self.done = False
+        self.previous_image = None
+        Init()
+        ManualRecovery()
+        time.sleep(1)
 
 
 if __name__ == '__main__':
     try:
         Init()
         print("Initialize")
-        learner = ModelLearner()
-        print("Start")
+        learner = ModelLearner(
+            model_kwargs={
+                "conv_channels": [16, 32, 32],
+                "kernel_size": 5,
+            })
         learner.start()
     except rospy.ROSInterruptException:
         print("ModelLearner stopped")
