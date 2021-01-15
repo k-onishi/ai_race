@@ -8,6 +8,7 @@ import time
 # import numpy as np
 import torch
 import rospy
+from sensor_msgs.msg import Image
 # from std_msgs.msg import String
 
 from agent import DeepQNetworkAgent
@@ -111,6 +112,7 @@ class ModelLearner(CarController):
         status = self.status
         done = self.course_out_detector.course_outed
         if done:
+            self.image_sub.unregister()
             self.episode_count += 1
             print("episode: {}\tLAP: {}\tstep count: {}".format(
                 self.episode_count, status["lap_count"], self.count))
@@ -123,6 +125,7 @@ class ModelLearner(CarController):
             if self.episode_count % self.update_teacher_interval == 0:
                 self.agent.update_teacher()
             Start()
+            self.image_sub = rospy.Subscriber('front_camera/image_raw', Image, self._callback)
 
     def start(self):
         Start()
