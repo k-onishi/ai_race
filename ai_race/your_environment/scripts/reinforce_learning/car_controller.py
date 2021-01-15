@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
-import Queue
-
 import rospy
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
-
-# from keyboard_con_pygame_videosave import INFERENCE_TIME
 
 
 INFERENCE_TIME = 0.055
@@ -70,7 +66,6 @@ class CarController(object):
 
     def _step(self):
         self.step()
-        # self.move(self.speed, self.angle)
         self.angle = 0
 
     def start(self, rate=30):

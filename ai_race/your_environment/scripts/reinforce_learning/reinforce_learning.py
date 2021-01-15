@@ -3,23 +3,20 @@ import json
 import os
 import requests
 import sys
-import time
 
-# import numpy as np
 import torch
 import rospy
 from sensor_msgs.msg import Image
-# from std_msgs.msg import String
 
 from agent import DeepQNetworkAgent
 from car_controller import CarController
 from course_out_detector import CourseOutDetector
-from model import Model, CustomModel
+from model import CustomModel
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 from reset_sample import (
-        Init, Start, Stop, ManualRecovery,
+        Init, Start, ManualRecovery,
         JUDGESERVER_GETSTATE_URL
 )
 
@@ -47,7 +44,7 @@ class GameState(object):
 
 class ModelLearner(CarController):
     def __init__(self, update_teacher_interval=10, num_epoch=20,
-            model_kwargs={}):
+            model_path=None, model_kwargs={}):
         self.model_kwargs = model_kwargs
         self.agent = DeepQNetworkAgent(
             CustomModel,
@@ -56,6 +53,7 @@ class ModelLearner(CarController):
             max_experience=500,
             batch_size=16,
             input_size=[1, 3, 240, 320],
+            model_path=model_path,
             model_kwargs=model_kwargs)
         print("model: {}".format(self.agent.model))
         self.count = 0
@@ -138,7 +136,7 @@ class ModelLearner(CarController):
         self.previous_image = None
         Init()
         ManualRecovery()
-        time.sleep(1)
+        rospy.sleep(1.0)
 
 
 if __name__ == '__main__':
@@ -146,6 +144,8 @@ if __name__ == '__main__':
         Init()
         print("Initialize")
         learner = ModelLearner(
+            model_path="/home/jetson/save_dir/model.pth",
+            update_teacher_interval=2,
             model_kwargs={
                 "conv_channels": [16, 32, 32],
                 "kernel_size": 5,

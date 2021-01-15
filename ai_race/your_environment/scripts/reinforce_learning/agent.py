@@ -34,7 +34,7 @@ class DeepQNetworkAgent(object):
     def __init__(self, model, lr=1e-2, max_experience=10000,
             choices=[-0.5, 0.0, 0.5], height=240, width=320, channel=3, batch_size=32, gamma=0.999,
             epsilon_start=0.9, epsilon_end=0.05, epsilon_decay=200, input_size=None,
-            model_kwargs={}):
+            model_path=None, model_kwargs={}):
         model_kwargs["choices"] = choices
         model_kwargs["input_height"] = height
         model_kwargs["input_width"] = width
@@ -71,6 +71,14 @@ class DeepQNetworkAgent(object):
             self.input_size = self.model.input_size
         else:
             self.input_size = input_size
+
+        self.model_path = model_path
+        if self.model_path is not None:
+            try:
+                self.load(self.model_path)
+                print("Load model from {}".format(self.model_path))
+            except IOError:
+                pass
 
     def preprocess(self, image):
         return torch.from_numpy(np.copy(image).astype(np.float32)).view(*self.input_size) / 256
@@ -128,4 +136,13 @@ class DeepQNetworkAgent(object):
         return loss
 
     def update_teacher(self):
+        if self.model_path is not None:
+            self.save(self.model_path)
         self.teacher_model.load_state_dict(self.model.state_dict())
+
+    def load(self, model_path):
+        self.model.load_state_dict(torch.load(model_path))
+        self.update_teacher()
+
+    def save(self, model_path):
+        torch.save(self.model.state_dict(), model_path)
