@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import math
+
 import rospy
 from gazebo_msgs.msg import ModelStates
 
@@ -23,16 +25,20 @@ class CourseOutDetector(object):
         self.data = data
 
     def get_position(self, data):
-        pos = self.data.name.index('wheel_robot')
-        x = self.data.pose[pos].position.x
-        y = self.data.pose[pos].position.y
+        pos = data.name.index('wheel_robot')
+        x = data.pose[pos].position.x
+        y = data.pose[pos].position.y
         return x, y
 
     @property
     def course_outed(self):
-        if self.data is None:
+        data = self.data
+        return self.is_course_outed(data)
+
+    def is_course_outed(self, data):
+        if data is None:
             return False
-        x, y = self.get_position(self.data)
+        x, y = self.get_position(data)
         if abs(x) < self.INNER_X and abs(y) < self.INNER_Y:
             return True
         if abs(x) > self.OUTER_X or abs(y) > self.OUTER_Y:
@@ -64,3 +70,18 @@ class CourseOutDetector(object):
         #             and (x + (self.INNER_X - self.RADIUS)) ** 2 + (y + self.INNER_Y) ** 2 < self.RADIUS ** 2:
         #         return True
         # return False
+
+    @property
+    def distance(self):
+        data = self.data
+        course_outed = self.is_course_outed(data)
+        if course_outed:
+            return -1
+        else:
+            x, y = self.get_position(data)
+            if abs(y) < self.INNER_Y:
+                return abs(x) - self.INNER_X
+            elif abs(x) < self.INNER_X:
+                return abs(y) - self.INNER_Y
+            else:
+                return math.sqrt((abs(x) - self.INNER_X)**2 + (abs(y) - self.INNER_Y)**2)

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import torch
 from torch import nn
 from torch.nn import functional as F
 
@@ -46,7 +47,8 @@ class Model(nn.Module):
 class CustomModel(nn.Module):
     def __init__(self, choices,
             conv_channels=[9, 16], linear_outputs=[], kernel_size=3,
-            input_height=240, input_width=320, input_channels=3):
+            input_height=240, input_width=320, input_channels=3,
+            stride=1):
         super(CustomModel, self).__init__()
         self.channel = input_channels
         self.height = input_height
@@ -55,22 +57,23 @@ class CustomModel(nn.Module):
 
         conv_layers = []
         linear_layers = []
-        # conv_channels = [input_channels] + conv_channels
         in_channel = input_channels
         for out_channel in conv_channels:
             conv_layers += [
-                nn.Conv2d(in_channel, out_channel, kernel_size),
+                nn.Conv2d(in_channel, out_channel, kernel_size, stride=stride),
                 nn.BatchNorm2d(out_channel),
             ]
             in_channel = out_channel
+        self.conv = nn.Sequential(*conv_layers)
         _linear_outputs = linear_outputs + [len(choices)]
-        num_conv = len(conv_channels)
-        size_reduction = num_conv * (kernel_size - 1)
-        in_size = (input_height - size_reduction) * (input_width - size_reduction) * in_channel
+        with torch.no_grad():
+            input_image_sample = torch.zeros(
+                1, input_channels, input_height, input_width)
+            output_image_sample = self.conv(input_image_sample)
+            in_size = output_image_sample.view(-1).size()[0]
         for out_size in _linear_outputs:
             linear_layers.append(nn.Linear(in_size, out_size))
             in_size = out_size
-        self.conv = nn.Sequential(*conv_layers)
         self.linear = nn.Sequential(*linear_layers)
 
     def forward(self, x):

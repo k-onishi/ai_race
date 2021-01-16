@@ -81,7 +81,8 @@ class DeepQNetworkAgent(object):
                 pass
 
     def preprocess(self, image):
-        return torch.from_numpy(np.copy(image).astype(np.float32)).view(*self.input_size) / 256
+        return torch.from_numpy(np.copy(image).astype(np.float32)).view(*self.input_size)
+        # return torch.from_numpy(np.copy(image).astype(np.float32)).view(*self.input_size) / 256
 
     def policy(self, state):
         sample = random.random()
@@ -130,8 +131,8 @@ class DeepQNetworkAgent(object):
 
         self.optimizer.zero_grad()
         loss.backward()
-        for param in self.model.parameters():
-            param.grad.data.clamp_(-1, 1)
+        # for param in self.model.parameters():
+        #     param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
         return loss
 

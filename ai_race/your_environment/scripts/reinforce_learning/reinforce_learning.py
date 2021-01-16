@@ -83,12 +83,16 @@ class ModelLearner(CarController):
         self.steering(self.agent.choice(action))
         self.move(self.speed, self.angle)
 
-        self.done = self.course_out_detector.course_outed
-        if self.done:
+        distance = self.course_out_detector.distance
+        if distance < 0:
             current_image = None
-            reward = -1
+            reward = -1.0
+            self.done = True
         else:
-            reward = 1
+            # distance
+            # max: sqrt(0.6^2 + 0.6^2) = 0.8485... = 0.90
+            reward = (0.9 - distance) // 0.3 / 2.0
+            self.done = False
         if self.previous_image is not None:
             self.agent.add_experience(
                 self.previous_image,
@@ -132,10 +136,10 @@ class ModelLearner(CarController):
     def reset(self):
         super(ModelLearner, self).reset()
         self.count = 0
-        self.done = False
         self.previous_image = None
         Init()
         ManualRecovery()
+        self.done = False
         rospy.sleep(1.0)
 
 
@@ -149,6 +153,7 @@ if __name__ == '__main__':
             model_kwargs={
                 "conv_channels": [16, 32, 32],
                 "kernel_size": 5,
+                "stride": 2,
             })
         learner.start()
     except rospy.ROSInterruptException:
