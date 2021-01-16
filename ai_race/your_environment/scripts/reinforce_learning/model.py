@@ -62,6 +62,7 @@ class CustomModel(nn.Module):
             conv_layers += [
                 nn.Conv2d(in_channel, out_channel, kernel_size, stride=stride),
                 nn.BatchNorm2d(out_channel),
+                nn.ReLU(),
             ]
             in_channel = out_channel
         self.conv = nn.Sequential(*conv_layers)

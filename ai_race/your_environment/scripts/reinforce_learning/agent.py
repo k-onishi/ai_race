@@ -46,7 +46,8 @@ class DeepQNetworkAgent(object):
         self.teacher_model.load_state_dict(self.model.state_dict())
         self.teacher_model.eval()
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0005)
+        # self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
         # self.optimizer = optim.RMSprop(self.model.parameters())
         self.criterion = nn.MSELoss()
         self.experiences = ReplayMemory(max_experience)
@@ -61,11 +62,6 @@ class DeepQNetworkAgent(object):
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
-
-        self.num_output_random = 0
-        self.num_output_inference = 0
-
-        self.num_step = 0
 
         if input_size is None:
             self.input_size = self.model.input_size
@@ -84,18 +80,21 @@ class DeepQNetworkAgent(object):
         return torch.from_numpy(np.copy(image).astype(np.float32)).view(*self.input_size)
         # return torch.from_numpy(np.copy(image).astype(np.float32)).view(*self.input_size) / 256
 
-    def policy(self, state):
+    def policy(self, state, num_episode):
         sample = random.random()
-        threshold = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * \
-                math.exp(-1.0 * self.num_step / self.epsilon_decay)
+        # threshold = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * \
+        #         math.exp(-1.0 * num_episode / self.epsilon_decay)
+        if num_episode < 30:
+            threshold = 0.2
+        elif num_episode < 50:
+            threshold = 0.1
+        else:
+            threshold = 0
         state = state.to(self.device)
-        self.num_step += 1
         if sample > threshold:
-            self.num_output_inference += 1
             with torch.no_grad():
                 return self.model(state).max(1)[1].view(1, 1)
         else:
-            self.num_output_random += 1
             return torch.tensor([[random.randrange(len(self.actions))]],
                     device=self.device, dtype=torch.long)
 

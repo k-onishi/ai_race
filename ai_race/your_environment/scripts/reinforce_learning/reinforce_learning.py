@@ -51,8 +51,10 @@ class ModelLearner(CarController):
             height=120,
             width=320,
             max_experience=500,
-            batch_size=16,
+            batch_size=32,
             input_size=[1, 3, 240, 320],
+            gamma=0.99,
+            # gamma=0.0,
             model_path=model_path,
             model_kwargs=model_kwargs)
         print("model: {}".format(self.agent.model))
@@ -79,7 +81,7 @@ class ModelLearner(CarController):
         current_image = self.image
         self.count += 1
         self.acceleration()
-        action = self.agent.policy(current_image)
+        action = self.agent.policy(current_image, self.episode_count)
         self.steering(self.agent.choice(action))
         self.move(self.speed, self.angle)
 
@@ -91,8 +93,15 @@ class ModelLearner(CarController):
         else:
             # distance
             # max: sqrt(0.6^2 + 0.6^2) = 0.8485... = 0.90
-            reward = (0.9 - distance) // 0.3 / 2.0
-            self.done = False
+            # reward = (0.9 - distance) // 0.3 / 2.0
+            if distance < 0.1:
+                reward = 0.0
+            elif distance < 0.3:
+                reward = 1.0
+            elif distance < 0.6:
+                reward = 0.5
+            else:
+                reward = 0.25
         if self.previous_image is not None:
             self.agent.add_experience(
                 self.previous_image,
@@ -139,8 +148,8 @@ class ModelLearner(CarController):
         self.previous_image = None
         Init()
         ManualRecovery()
-        self.done = False
         rospy.sleep(1.0)
+        self.done = False
 
 
 if __name__ == '__main__':
@@ -149,7 +158,7 @@ if __name__ == '__main__':
         print("Initialize")
         learner = ModelLearner(
             model_path="/home/jetson/save_dir/model.pth",
-            update_teacher_interval=2,
+            update_teacher_interval=3,
             model_kwargs={
                 "conv_channels": [16, 32, 32],
                 "kernel_size": 5,
