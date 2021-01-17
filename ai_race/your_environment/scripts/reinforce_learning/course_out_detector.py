@@ -6,18 +6,12 @@ from gazebo_msgs.msg import ModelStates
 
 
 class CourseOutDetector(object):
-    # INNER_X = 1.1
-    # INNER_Y = 1
-    # OUTER_X = 3.0
-    # OUTER_Y = 2.5
-    # RADIUS = 0.5
-    INNER_X = 1.3
-    INNER_Y = 1.9
-    OUTER_X = 2.1
-    OUTER_Y = 2.7
+    WIDTH = 0.4
+    HEIGHT = 1.0
+    RADIUS = 1.0
+    PATH_WIDTH = 0.8
 
     def __init__(self):
-        # rospy.init_node("course_out_detector", anonymous=True)
         rospy.Subscriber("/gazebo/model_states", ModelStates, self.callback, queue_size=1)
         self.data = None
 
@@ -32,56 +26,27 @@ class CourseOutDetector(object):
 
     @property
     def course_outed(self):
-        data = self.data
-        return self.is_course_outed(data)
-
-    def is_course_outed(self, data):
-        if data is None:
+        distance = self.distance
+        if distance >= 0 and distance <= self.PATH_WIDTH:
             return False
-        x, y = self.get_position(data)
-        if abs(x) < self.INNER_X and abs(y) < self.INNER_Y:
+        else:
             return True
-        if abs(x) > self.OUTER_X or abs(y) > self.OUTER_Y:
-            return True
-        return False
-        # if abs(x) >= self.OUTER_X or abs(y) >= self.OUTER_Y:
-        #     return True
-        # elif abs(y) <= self.INNER_Y:
-        #     if abs(x) <= self.INNER_X:
-        #         return True
-        # elif y > self.INNER_Y:
-        #     if abs(x) < (self.INNER_X - self.RADIUS) \
-        #             and (y < (self.INNER_Y + self.RADIUS)):
-        #         return True
-        #     elif x >= (self.INNER_X - self.RADIUS)\
-        #             and (x - (self.INNER_X - self.RADIUS)) ** 2 + (y - self.INNER_Y) ** 2 < self.RADIUS ** 2:
-        #         return True
-        #     elif x <= -(self.INNER_X - self.RADIUS)\
-        #             and (x + (self.INNER_X - self.RADIUS)) ** 2 + (y - self.INNER_Y) ** 2 < self.RADIUS ** 2:
-        #         return True
-        # elif y < -self.INNER_Y:
-        #     if abs(x) < (self.INNER_X - self.RADIUS) \
-        #             and (y > -(self.INNER_Y + self.RADIUS)):
-        #         return True
-        #     elif x >= (self.INNER_X - self.RADIUS)\
-        #             and (x - (self.INNER_X - self.RADIUS)) ** 2 + (y + self.INNER_Y) ** 2 < self.RADIUS ** 2:
-        #         return True
-        #     elif x <= -(self.INNER_X - self.RADIUS)\
-        #             and (x + (self.INNER_X - self.RADIUS)) ** 2 + (y + self.INNER_Y) ** 2 < self.RADIUS ** 2:
-        #         return True
-        # return False
 
     @property
     def distance(self):
         data = self.data
-        course_outed = self.is_course_outed(data)
-        if course_outed:
-            return -1
+        _x, _y = self.get_position(data)
+        # 第一象限で考える
+        x, y = abs(_x), abs(_y)
+        if (x >= self.WIDTH + self.RADIUS) and (y <= self.HEIGHT):
+            # コースの右側にある場合
+            return x - (self.WIDTH + self.RADIUS)
+        elif (x <= self.WIDTH) and (y >= self.HEIGHT + self.WIDTH):
+            # コースの上側にある場合
+            return y - (self.HEIGHT + self.RADIUS)
+        elif (x >= self.WIDTH) and (y >= self.HEIGHT):
+            # コースのコーナーにいる場合
+            return math.sqrt((x - self.WIDTH)**2 + (y - self.HEIGHT) ** 2) - self.RADIUS
         else:
-            x, y = self.get_position(data)
-            if abs(y) < self.INNER_Y:
-                return abs(x) - self.INNER_X
-            elif abs(x) < self.INNER_X:
-                return abs(y) - self.INNER_Y
-            else:
-                return math.sqrt((abs(x) - self.INNER_X)**2 + (abs(y) - self.INNER_Y)**2)
+            # コースの中に入っている場合。めんどくさいので-1を返します
+            return -1

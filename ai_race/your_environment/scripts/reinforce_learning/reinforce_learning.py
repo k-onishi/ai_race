@@ -12,6 +12,7 @@ from agent import DeepQNetworkAgent
 from car_controller import CarController
 from course_out_detector import CourseOutDetector
 from model import CustomModel
+from logger import logger
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
@@ -54,14 +55,12 @@ class ModelLearner(CarController):
             batch_size=32,
             input_size=[1, 3, 240, 320],
             gamma=0.99,
-            # gamma=0.0,
             model_path=model_path,
             model_kwargs=model_kwargs)
         print("model: {}".format(self.agent.model))
         self.count = 0
         self.num_epoch = num_epoch
         self.episode_count = 0
-        print("Initialize detector")
         self.course_out_detector = CourseOutDetector()
         self.previous_image = None
         self.previous_action = None
@@ -86,7 +85,7 @@ class ModelLearner(CarController):
         self.move(self.speed, self.angle)
 
         distance = self.course_out_detector.distance
-        if distance < 0:
+        if distance < 0 or distance > self.course_out_detector.PATH_WIDTH:
             current_image = None
             reward = -1.0
             self.done = True
@@ -95,10 +94,10 @@ class ModelLearner(CarController):
             # max: sqrt(0.6^2 + 0.6^2) = 0.8485... = 0.90
             # reward = (0.9 - distance) // 0.3 / 2.0
             if distance < 0.1:
-                reward = 0.0
-            elif distance < 0.3:
                 reward = 1.0
-            elif distance < 0.6:
+            elif distance < 0.4:
+                reward = 0.75
+            elif distance < 0.7:
                 reward = 0.5
             else:
                 reward = 0.25
@@ -122,17 +121,26 @@ class ModelLearner(CarController):
     def step(self):
         status = self.status
         done = self.course_out_detector.course_outed
-        if done:
+        # コースアウトかタイムアップ
+        if done or status["elapsed_time"]["ros_time"] > 240:
             self.image_sub.unregister()
+            if status["elapsed_time"]["ros_time"] > 240:
+                logger.info("complete")
             self.episode_count += 1
-            print("episode: {}\tLAP: {}\tstep count: {}".format(
-                self.episode_count, status["lap_count"], self.count))
+            logger.info(
+                "episode: {}\tLAP: {}\tstep count: {}\tros time: {:.2f}".format(
+                    self.episode_count, status["lap_count"], self.count,
+                    status["elapsed_time"]["ros_time"]
+            ))
             self.reset()
             for epoch in range(self.num_epoch):
                 loss = self.agent.update()
                 if loss is None:
                     break
-            print("Loss: {}".format(loss))
+            if loss is not None:
+                logger.info("Loss: {:.3f}".format(loss))
+            else:
+                logger.info("Loss: None")
             if self.episode_count % self.update_teacher_interval == 0:
                 self.agent.update_teacher()
             Start()
@@ -153,6 +161,7 @@ class ModelLearner(CarController):
 
 
 if __name__ == '__main__':
+    logger.info("=== Reinforce Learning Start ===")
     try:
         Init()
         print("Initialize")
@@ -168,3 +177,4 @@ if __name__ == '__main__':
     except rospy.ROSInterruptException:
         print("ModelLearner stopped")
         learner.reset()
+    logger.info("=== Reinforce Learning End ===")
