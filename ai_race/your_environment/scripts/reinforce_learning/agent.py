@@ -36,7 +36,7 @@ class DeepQNetworkAgent(object):
     def __init__(self, model, lr=1e-2, max_experience=10000,
             choices=[-0.5, 0.0, 0.5], height=240, width=320, channel=3, batch_size=32, gamma=0.999,
             epsilon_start=0.9, epsilon_end=0.05, epsilon_decay=200, input_size=None,
-            model_path=None, model_kwargs={}):
+            model_path=None, should_load=False, model_kwargs={}):
         model_kwargs["choices"] = choices
         model_kwargs["input_height"] = height
         model_kwargs["input_width"] = width
@@ -71,7 +71,7 @@ class DeepQNetworkAgent(object):
             self.input_size = input_size
 
         self.model_path = model_path
-        if self.model_path is not None:
+        if self.model_path is not None and should_load:
             try:
                 self.load(self.model_path)
                 print("Load model from {}".format(self.model_path))
