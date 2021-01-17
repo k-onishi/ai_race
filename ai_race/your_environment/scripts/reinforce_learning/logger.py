@@ -8,13 +8,13 @@ def get_logger(name=None, level=logging.INFO, log_filename=None):
     else:
         logger = logging.getLogger(name)
     logger.setLevel(level)
-    logger.addHandler(
-        logging.StreamHandler()
-    )
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    logger.addHandler(stream_handler)
     if log_filename is not None:
-        logger.addHandler(
-            logging.FileHandler(log_filename)
-        )
+        handler = logging.FileHandler(log_filename)
+        handler.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
     return logger
 
 logger = get_logger(

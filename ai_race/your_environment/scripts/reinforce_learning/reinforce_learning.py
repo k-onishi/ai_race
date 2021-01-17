@@ -66,6 +66,7 @@ class ModelLearner(CarController):
         self.previous_action = None
         self.update_teacher_interval = update_teacher_interval
         self.done = False
+        self.previous_distance = self.course_out_detector.PATH_WIDTH
         super(ModelLearner, self).__init__()
 
     def preprocess(self, image):
@@ -101,6 +102,13 @@ class ModelLearner(CarController):
                 reward = 0.5
             else:
                 reward = 0.25
+            # inner incentive
+            if distance < self.previous_distance:
+                reward += 0.1
+            elif distance > self.previous_distance:
+                reward -= 0.1
+            self.previous_distance = distance
+        logger.debug("distance: {}\treward: {}".format(distance, reward))
         if self.previous_image is not None:
             self.agent.add_experience(
                 self.previous_image,
@@ -157,6 +165,7 @@ class ModelLearner(CarController):
         Init()
         ManualRecovery()
         rospy.sleep(1.0)
+        self.previous_distance = self.course_out_detector.PATH_WIDTH
         self.done = False
 
 

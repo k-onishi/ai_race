@@ -7,6 +7,8 @@ import torch
 from torch import nn, optim
 from torch.nn import functional as F
 
+from logger import logger
+
 
 Transition = namedtuple('Transition',
         ('state', 'action', 'next_state', 'reward'))
@@ -93,7 +95,9 @@ class DeepQNetworkAgent(object):
         state = state.to(self.device)
         if sample > threshold:
             with torch.no_grad():
-                return self.model(state).max(1)[1].view(1, 1)
+                value = self.model(state)
+                logger.debug("policy: {}".format(value))
+                return value.max(1)[1].view(1, 1)
         else:
             return torch.tensor([[random.randrange(len(self.actions))]],
                     device=self.device, dtype=torch.long)
