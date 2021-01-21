@@ -59,8 +59,8 @@ def init_inference(model_kwargs):
 i=0
 pre = time.time()
 now = time.time()
-tmp = torch.zeros([1,3,120,320])
-# tmp = torch.zeros([1,3,240,320])
+# tmp = torch.zeros([1,3,120,320])
+tmp = torch.zeros([1,3,240,320])
 bridge = CvBridge()
 twist = Twist()
 choices = [-0.5, 0.0, 0.5]
@@ -84,14 +84,20 @@ def set_throttle_steer(data):
         print ("average_time:{0}".format((now - pre)/100) + "[sec]")
     start = time.time()
     image = bridge.imgmsg_to_cv2(data, "bgr8")
-    image = IMG.fromarray(image)
+    image = torch.from_numpy(np.copy(image).astype(np.float32)).view(1, 3, 240, 320)
+    # image = IMG.fromarray(image)
     # image = transforms.ToTensor()(image)
-    image = transforms.ToTensor()(image)[:, 120:, :]
+    # image = transforms.ToTensor()(image)[:, :120, :]
     
-    tmp[0] = image
+    # tmp[0] = image
     
     #tmp = tmp.half()
-    image = tmp.to(device)
+    image = image.to(device)
+    # image = tmp.to(device)
+    image = image[:, :, 120:, :]
+    if i < 5:
+        torchvision.utils.save_image(image, "/home/jetson/save_dir/inference_image_2_{}.png".format(i))
+    # image = tmp.to(device)
     outputs = model(image)
 
     # output = choices[model(image).max(1)[1].view(1, 1)].cpu()
@@ -113,7 +119,7 @@ def set_throttle_steer(data):
     twist.linear.z = 0.0
     twist.angular.x = 0.0
     twist.angular.y = 0.0
-    twist.angular.z = angular_z
+    twist.angular.z = -angular_z
     twist_pub.publish(twist)
     end = time.time()
     print ("time_each:{0:.3f}".format((end - start)) + "[sec]")
